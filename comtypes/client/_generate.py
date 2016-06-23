@@ -134,19 +134,17 @@ def GetModule(tlib):
     modname = fullname.split(".")[-1]
     code = "from comtypes.gen import %s\nglobals().update(%s.__dict__)\n" % (modname, modname)
     code += "__name__ = 'comtypes.gen.%s'" % modulename
-    if comtypes.client.gen_dir is None:
-        mod = types.ModuleType("comtypes.gen." + modulename)
-        mod.__file__ = os.path.join(os.path.abspath(comtypes.gen.__path__[0]),
-                                    "<memory>")
-        exec code in mod.__dict__
-        sys.modules["comtypes.gen." + modulename] = mod
-        setattr(comtypes.gen, modulename, mod)
-        return mod
-    # create in file system, and import it
-    ofi = open(os.path.join(comtypes.client.gen_dir, modulename + ".py"), "w")
-    ofi.write(code)
-    ofi.close()
-    return _my_import("comtypes.gen." + modulename)
+    mod = types.ModuleType("comtypes.gen." + modulename)
+    mod.__file__ = os.path.join(os.path.abspath(comtypes.gen.__path__[0]),
+                                "<memory>")
+    exec code in mod.__dict__
+    sys.modules["comtypes.gen." + modulename] = mod
+    setattr(comtypes.gen, modulename, mod)
+    if comtypes.client.gen_dir is not None:
+        # create in file system, and import it
+        with open(os.path.join(comtypes.client.gen_dir, modulename + ".py"), "w") as ofi:
+            ofi.write(code)
+    return mod
 
 def _CreateWrapper(tlib, pathname=None):
     # helper which creates and imports the real typelib wrapper module.
@@ -165,27 +163,22 @@ def _CreateWrapper(tlib, pathname=None):
 
     # generate the module since it doesn't exist or is out of date
     from comtypes.tools.tlbparser import generate_module
-    if comtypes.client.gen_dir is None:
-        import cStringIO
-        ofi = cStringIO.StringIO()
-    else:
-        ofi = open(os.path.join(comtypes.client.gen_dir, modname + ".py"), "w")
+    import cStringIO
+    ofi = cStringIO.StringIO()
     # XXX use logging!
     if __verbose__:
         print "# Generating comtypes.gen.%s" % modname
     generate_module(tlib, ofi, pathname)
-
-    if comtypes.client.gen_dir is None:
-        code = ofi.getvalue()
-        mod = types.ModuleType(fullname)
-        mod.__file__ = os.path.join(os.path.abspath(comtypes.gen.__path__[0]),
-                                    "<memory>")
-        exec code in mod.__dict__
-        sys.modules[fullname] = mod
-        setattr(comtypes.gen, modname, mod)
-    else:
-        ofi.close()
-        mod = _my_import(fullname)
+    code = ofi.getvalue()
+    mod = types.ModuleType(fullname)
+    mod.__file__ = os.path.join(os.path.abspath(comtypes.gen.__path__[0]),
+                                "<memory>")
+    exec code in mod.__dict__
+    sys.modules[fullname] = mod
+    setattr(comtypes.gen, modname, mod)
+    if comtypes.client.gen_dir is not None:
+        with open(os.path.join(comtypes.client.gen_dir, modname + ".py"), "w") as f:
+            f.write(code)
     return mod
 
 ################################################################
